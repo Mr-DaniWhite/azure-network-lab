@@ -1,653 +1,531 @@
 # ☁️ Azure Network Simulator
 
-> 🧪 **Local Azure Networking Lab**
->
-> A lightweight CLI-based simulator for learning and practicing
-> **Azure Networking, AZ-700 concepts and Hybrid Networking**
-> without an Azure subscription or cloud resources.
+> **Local Azure Networking Lab for AZ-700 and Hybrid Networking practice**
+
+A lightweight Python CLI for simulating Azure networking concepts locally, without an Azure subscription or real cloud resources.
+
+## 🎯 Goals
+
+Practice:
+
+- IPv4 / CIDR
+- Virtual Networks and Subnets
+- VNet Peering
+- Network Security Groups
+- Routing and route simulation
+- VPN Gateway
+- Local Network Gateway
+- IPsec VPN
+- BGP
+- Hybrid networking
+
+The simulator stores its topology locally in `data/state.json`.
 
 ---
 
-## 🎯 What is this?
+## 🚀 Requirements
 
-Azure Network Simulator is a **local networking laboratory** written in Python.
+- Python 3.12+
+- Git
+- [uv](https://docs.astral.sh/uv/)
 
-It does **not** create real Azure resources.
+Run the simulator with:
 
-Instead, it models Azure networking concepts locally so you can practice:
-
-- 🌐 Virtual Networks
-- 📦 Subnets
-- 🔗 VNet Peering
-- 🛡️ Network Security Groups
-- 🛣️ Route Tables
-- 🧭 User Defined Routes
-- 🔍 Route selection
-- 🔐 VPN Gateway
-- 🏢 Local Network Gateway
-- 🔒 IPsec VPN connections
-- 🛰️ BGP
-- 📡 Azure Route Server
-- 🧱 Network Virtual Appliances
-- ⚡ ExpressRoute
-- 🌍 Virtual WAN
-- 🔀 Hybrid routing
-
-The simulator stores its topology locally in:
-
-```text
-data/state.json
-
-🏗️ Architecture
-
-The project is intentionally simple:
-
-                   ┌───────────────────────────┐
-                   │       Azure Simulator     │
-                   │                           │
-                   │        app.py             │
-                   │                           │
-                   │   CLI + Network Logic     │
-                   └─────────────┬─────────────┘
-                                 │
-                                 ▼
-                         ┌───────────────┐
-                         │  state.json   │
-                         │               │
-                         │  Local State  │
-                         └───────────────┘
-
-Everything runs locally.
-
-No:
-
-❌ Azure subscription
-❌ Azure CLI authentication
-❌ Credit card
-❌ Cloud resources
-❌ Virtual machines
-❌ Real network traffic
-❌ Internet connectivity
-🚀 Installation
-Requirements
-Python 3.12+
-Git
-uv
-▶️ Run the simulator
-
-From the project directory:
-
+```powershell
 uv run .\app.py --help
+```
 
 General syntax:
 
-uv run .\app.py <resource> <action> [options]
-📚 Supported Resources
-Resource	Purpose
-group	Resource Groups
-vnet	Virtual Networks
-subnet	Subnets
-peering	VNet Peering
-nsg	Network Security Groups
-route	Route Tables, UDR and route simulation
-vpn	VPN Gateway and hybrid VPN
-bgp	BGP peers and routes
-route-server	Azure Route Server
-nva	Network Virtual Appliances
-expressroute	ExpressRoute
-wan	Virtual WAN
-📦 Resource Groups
+```text
+uv run .\app.py <resource> <command> [options]
+```
 
-Resource Groups are used to logically organize Azure resources.
+Useful help commands:
 
-Create
-uv run .\app.py group create `
-  --name rg-weu `
-  --location westeurope
-List
-uv run .\app.py group list
+```powershell
+uv run .\app.py group --help
+uv run .\app.py vnet --help
+uv run .\app.py subnet --help
+uv run .\app.py peering --help
+uv run .\app.py nsg --help
+uv run .\app.py route --help
+uv run .\app.py vpn --help
+uv run .\app.py bgp --help
+```
 
-Example:
+---
 
-NAME          LOCATION
-----------------------------------------
-rg-weu        westeurope
-rg-neu        northeurope
-🌐 Virtual Networks
+# 📚 Current Functionality
 
-Create Azure Virtual Networks.
+| Area | Status |
+|---|:---:|
+| Resource Groups | ✅ |
+| Virtual Networks | ✅ |
+| Subnets | ✅ |
+| VNet Peering | ✅ |
+| Network Security Groups | ✅ |
+| Route simulation | ✅ |
+| VPN Gateway | ✅ |
+| Local Network Gateway | ✅ |
+| IPsec VPN connection | ✅ |
+| BGP peers | ✅ |
+| BGP route advertisement | ✅ |
+| BGP learned routes | ✅ |
+| Hybrid route simulation | ✅ |
+| Azure Route Server | 🚧 |
+| NVA | 🚧 |
+| ExpressRoute | 🚧 |
+| Virtual WAN | 🚧 |
 
-Create
-uv run .\app.py vnet create `
-  --resource-group rg-weu `
-  --name vnet-weu `
-  --address-prefix 10.10.0.0/16
+`🚧` means planned functionality, not currently implemented.
 
-Create another region:
+---
 
-uv run .\app.py vnet create `
-  --resource-group rg-neu `
-  --name vnet-neu `
-  --address-prefix 10.20.0.0/16
-List
+# 🌐 Virtual Networks
+
+Create a VNet:
+
+```powershell
+uv run .\app.py vnet create --resource-group rg-weu --name vnet-weu --address-prefix 10.10.0.0/16
+```
+
+List VNets:
+
+```powershell
 uv run .\app.py vnet list
-Show VNet
-uv run .\app.py vnet show `
-  --name vnet-weu
+```
 
-Example:
+Show a VNet:
 
-VIRTUAL NETWORK
-----------------------------------------------------------------------
-
-Name:           vnet-weu
-Region:         westeurope
-Address Space:  10.10.0.0/16
-
-SUBNETS
-----------------------------------------------------------------------
-
-web             10.10.1.0/24
-📦 Subnets
-
-Create subnets inside a VNet.
-
-Create
-uv run .\app.py subnet create `
-  --resource-group rg-weu `
-  --vnet vnet-weu `
-  --name web `
-  --address-prefix 10.10.1.0/24
-
-Another subnet:
-
-uv run .\app.py subnet create `
-  --resource-group rg-weu `
-  --vnet vnet-weu `
-  --name app `
-  --address-prefix 10.10.2.0/24
-List
-uv run .\app.py subnet list `
-  --vnet vnet-weu
-🔗 VNet Peering
-
-Simulate communication between VNets.
+```powershell
+uv run .\app.py vnet show --name vnet-weu
+```
 
 Example topology:
 
-┌────────────────────┐
-│     vnet-weu       │
-│   10.10.0.0/16     │
-└─────────┬──────────┘
-          │
-          │ VNet Peering
-          │
-┌─────────┴──────────┐
-│     vnet-neu       │
-│   10.20.0.0/16     │
-└────────────────────┘
-Create
-uv run .\app.py peering create `
-  --source-vnet vnet-weu `
-  --remote-vnet vnet-neu
-List
-uv run .\app.py peering list
-🛡️ Network Security Groups
-
-NSGs allow you to model Azure security rules.
-
-Create NSG
-uv run .\app.py nsg create `
-  --resource-group rg-weu `
-  --name nsg-web
-List
-uv run .\app.py nsg list
-🔐 Create NSG Rule
-
-Example: allow HTTP.
-
-uv run .\app.py nsg rule create `
-  --nsg nsg-web `
-  --name allow-http `
-  --priority 100 `
-  --direction inbound `
-  --access allow `
-  --protocol tcp `
-  --source-prefix Internet `
-  --destination-port 80
-
-Example: deny SSH.
-
-uv run .\app.py nsg rule create `
-  --nsg nsg-web `
-  --name deny-ssh `
-  --priority 200 `
-  --direction inbound `
-  --access deny `
-  --protocol tcp `
-  --source-prefix Internet `
-  --destination-port 22
-List rules
-uv run .\app.py nsg rule list `
-  --nsg nsg-web
-🔌 Associate NSG with a Subnet
-uv run .\app.py subnet associate-nsg `
-  --vnet vnet-weu `
-  --subnet web `
-  --nsg nsg-web
-🛣️ Route Tables
-
-Create a route table:
-
-uv run .\app.py route table-create `
-  --resource-group rg-weu `
-  --name rt-weu
-List route tables
-uv run .\app.py route table-list
-🧭 User Defined Routes
-
-Example:
-
+```text
+vnet-weu
 10.10.0.0/16
-      │
-      ▼
-     NVA
-  10.10.2.10
+│
+├── web
+│   └── 10.10.1.0/24
+│
+└── app
+    └── 10.10.2.0/24
+```
 
-Create the route:
+---
 
-uv run .\app.py route create `
-  --route-table rt-weu `
-  --name to-firewall `
-  --address-prefix 10.20.0.0/16 `
-  --next-hop-type virtual-appliance `
-  --next-hop-ip 10.10.2.10
-List routes
-uv run .\app.py route list `
-  --route-table rt-weu
-🔗 Associate Route Table
-uv run .\app.py route associate `
-  --vnet vnet-weu `
-  --subnet web `
-  --route-table rt-weu
-🔍 Route Simulation
+# 📦 Subnets
 
-The simulator can evaluate how a packet would be routed.
+Create a subnet:
+
+```powershell
+uv run .\app.py subnet create --resource-group rg-weu --vnet vnet-weu --name web --address-prefix 10.10.1.0/24
+```
+
+Create another subnet:
+
+```powershell
+uv run .\app.py subnet create --resource-group rg-weu --vnet vnet-weu --name app --address-prefix 10.10.2.0/24
+```
+
+List subnets:
+
+```powershell
+uv run .\app.py subnet list --vnet vnet-weu
+```
+
+---
+
+# 🔗 VNet Peering
 
 Example:
 
-uv run .\app.py route simulate `
-  --source 10.10.1.10 `
-  --destination 10.20.1.10
+```text
+┌──────────────────────┐
+│      vnet-weu        │
+│    10.10.0.0/16      │
+└──────────┬───────────┘
+           │
+           │ VNet Peering
+           │
+┌──────────┴───────────┐
+│      vnet-neu        │
+│    10.20.0.0/16      │
+└──────────────────────┘
+```
 
-Possible results:
+Create a peering:
 
-✓ SAME SUBNET
+```powershell
+uv run .\app.py peering create --source-vnet vnet-weu --remote-vnet vnet-neu
+```
 
-or:
+List peerings:
 
-✓ SYSTEM ROUTE
-Next Hop: VIRTUAL NETWORK
+```powershell
+uv run .\app.py peering list
+```
 
-or:
+---
 
-✓ VNET PEERING
-Next Hop: VIRTUAL NETWORK PEERING
+# 🛡️ Network Security Groups
 
-or:
+Create an NSG:
 
-✓ USER DEFINED ROUTE
-Next Hop: virtual-appliance
-Next Hop IP: 10.10.2.10
+```powershell
+uv run .\app.py nsg create --resource-group rg-weu --name nsg-web
+```
 
-or:
+List NSGs:
 
+```powershell
+uv run .\app.py nsg list
+```
+
+---
+
+# 🛣️ Route Simulation
+
+The simulator can evaluate a destination against the simulated topology.
+
+Example:
+
+```powershell
+uv run .\app.py route simulate --source 10.10.1.10 --destination 10.20.1.10
+```
+
+The result identifies the source VNet/subnet, destination classification and the simulated routing path when one exists.
+
+---
+
+# 🔐 Hybrid Networking
+
+The current hybrid scenario models Azure connectivity to an external/on-premises network using IPsec and BGP.
+
+```text
+                     AZURE
+              ┌──────────────────┐
+              │    vnet-weu       │
+              │  10.10.0.0/16     │
+              │                   │
+              │   Web subnet      │
+              │  10.10.1.0/24    │
+              │        │          │
+              │        ▼          │
+              │  VPN Gateway      │
+              │    ASN 65515      │
+              └────────┬──────────┘
+                       │
+                    IPsec VPN
+                       │
+                      BGP
+                       │
+                       ▼
+              ┌──────────────────┐
+              │     ON-PREM      │
+              │    ASN 65010     │
+              │                  │
+              │  10.100.0.0/16   │
+              └──────────────────┘
+```
+
+## VPN Gateway
+
+```powershell
+uv run .\app.py vpn gateway-create --name vpn-gw-weu --vnet vnet-weu --sku VpnGw1 --asn 65515
+```
+
+## Local Network Gateway
+
+```powershell
+uv run .\app.py vpn local-create --name onprem-weu --ip-address 203.0.113.10 --address-prefixes 10.100.0.0/16 --asn 65010 --bgp-peering-address 10.100.255.1
+```
+
+## VPN Connection
+
+```powershell
+uv run .\app.py vpn connection-create --name vpn-onprem-weu --vpn-gateway vpn-gw-weu --local-gateway onprem-weu --bgp
+```
+
+---
+
+# 🛰️ BGP
+
+The simulator models basic BGP route exchange:
+
+- local ASN
+- remote ASN
+- local and remote BGP addresses
+- peer state
+- advertised prefixes
+- learned prefixes
+
+## Create a BGP Peer
+
+```powershell
+uv run .\app.py bgp peer-create --name bgp-onprem --local-device vpn-gw-weu --local-asn 65515 --local-ip 10.100.255.2 --remote-device onprem-router --remote-asn 65010 --remote-ip 10.100.255.1
+```
+
+## List BGP Peers
+
+```powershell
+uv run .\app.py bgp peer-list
+```
+
+## Advertise a Prefix
+
+```powershell
+uv run .\app.py bgp advertise --peer bgp-onprem --prefix 10.100.0.0/16
+```
+
+## Learn a Prefix
+
+```powershell
+uv run .\app.py bgp learn --peer bgp-onprem --prefix 10.100.0.0/16
+```
+
+---
+
+# 🔍 Hybrid Route Simulation
+
+After configuring the VPN and BGP objects, simulate a route from Azure to on-premises:
+
+```powershell
+uv run .\app.py route simulate --source 10.10.1.10 --destination 10.100.1.10
+```
+
+Expected result:
+
+```text
 ✓ HYBRID ROUTE
 Transport: IPsec VPN
-Routing:   BGP
-🔐 VPN Gateway
+VPN Gateway: vpn-gw-weu
+Local Network: onprem-weu
+Routing: BGP
+Destination Prefix: 10.100.0.0/16
+```
 
-Create a simulated Azure VPN Gateway.
+Logical path:
 
-uv run .\app.py vpn gateway-create `
-  --name vpn-gw-weu `
-  --vnet vnet-weu `
-  --sku VpnGw1 `
-  --asn 65515
-List
-uv run .\app.py vpn gateway-list
-🏢 Local Network Gateway
+```text
+10.10.1.10
+    │
+    ▼
+Azure VNet
+    │
+    ▼
+VPN Gateway
+    │
+    │ IPsec
+    ▼
+BGP
+    │
+    ▼
+On-Premises
+10.100.0.0/16
+    │
+    ▼
+10.100.1.10
+```
 
-Represents the on-premises network.
+> **Important:** IPsec represents the connectivity/transport mechanism, while BGP represents dynamic route exchange in this simulation.
 
-Example:
+---
 
-Azure
-10.10.0.0/16
-       │
-       │ IPsec
+# 🧪 Complete Hybrid Lab
+
+Run the following sequence to reproduce the current working hybrid scenario.
+
+### 1. Resource Group
+
+```powershell
+uv run .\app.py group create --name rg-weu --location westeurope
+```
+
+### 2. VNet
+
+```powershell
+uv run .\app.py vnet create --resource-group rg-weu --name vnet-weu --address-prefix 10.10.0.0/16
+```
+
+### 3. Web Subnet
+
+```powershell
+uv run .\app.py subnet create --resource-group rg-weu --vnet vnet-weu --name web --address-prefix 10.10.1.0/24
+```
+
+### 4. VPN Gateway
+
+```powershell
+uv run .\app.py vpn gateway-create --name vpn-gw-weu --vnet vnet-weu --sku VpnGw1 --asn 65515
+```
+
+### 5. Local Network Gateway
+
+```powershell
+uv run .\app.py vpn local-create --name onprem-weu --ip-address 203.0.113.10 --address-prefixes 10.100.0.0/16 --asn 65010 --bgp-peering-address 10.100.255.1
+```
+
+### 6. VPN Connection
+
+```powershell
+uv run .\app.py vpn connection-create --name vpn-onprem-weu --vpn-gateway vpn-gw-weu --local-gateway onprem-weu --bgp
+```
+
+### 7. BGP Peer
+
+```powershell
+uv run .\app.py bgp peer-create --name bgp-onprem --local-device vpn-gw-weu --local-asn 65515 --local-ip 10.100.255.2 --remote-device onprem-router --remote-asn 65010 --remote-ip 10.100.255.1
+```
+
+### 8. Advertise the On-Premises Prefix
+
+```powershell
+uv run .\app.py bgp advertise --peer bgp-onprem --prefix 10.100.0.0/16
+```
+
+### 9. Learn the Route
+
+```powershell
+uv run .\app.py bgp learn --peer bgp-onprem --prefix 10.100.0.0/16
+```
+
+### 10. Simulate the Route
+
+```powershell
+uv run .\app.py route simulate --source 10.10.1.10 --destination 10.100.1.10
+```
+
+---
+
+# 🧠 Learning Model
+
+The project is designed to connect the concepts instead of treating them as isolated commands:
+
+```text
+VPN
+ │
+ ├── provides connectivity
+ │
+ └── IPsec
        │
        ▼
-On-Prem
-10.100.0.0/16
+     BGP
+       │
+       ├── exchanges prefixes
+       │
+       └── provides routing information
+              │
+              ▼
+        Route Selection
+              │
+              ▼
+        Destination Network
+```
 
-Create:
+---
 
-uv run .\app.py vpn local-create `
-  --name onprem-weu `
-  --ip-address 203.0.113.10 `
-  --address-prefixes 10.100.0.0/16 `
-  --asn 65010 `
-  --bgp-peering-address 10.100.255.1
-List
-uv run .\app.py vpn local-list
-🔒 VPN Connection
+# 📊 Networking Coverage
 
-Create an IPsec VPN connection.
+| Concept | Status |
+|---|:---:|
+| IPv4 / CIDR | ✅ |
+| VNet | ✅ |
+| Subnet | ✅ |
+| VNet Peering | ✅ |
+| NSG | ✅ |
+| VPN Gateway | ✅ |
+| Local Network Gateway | ✅ |
+| IPsec VPN | ✅ |
+| BGP | ✅ |
+| BGP Peer | ✅ |
+| BGP Advertisement | ✅ |
+| BGP Learned Route | ✅ |
+| Hybrid Route Simulation | ✅ |
+| Route Server | 🚧 |
+| NVA | 🚧 |
+| ExpressRoute | 🚧 |
+| Virtual WAN | 🚧 |
 
-uv run .\app.py vpn connection-create `
-  --name vpn-onprem-weu `
-  --vpn-gateway vpn-gw-weu `
-  --local-gateway onprem-weu `
-  --bgp
-List
-uv run .\app.py vpn connection-list
-🛰️ BGP
+---
 
-The simulator supports basic BGP concepts.
+# 🚧 Roadmap
 
-You can model:
+The next stages are focused on advanced Azure networking and eventually Service Provider / Telco scenarios.
 
-AS numbers
-BGP peers
-BGP sessions
-Advertised routes
-Learned routes
-Create BGP Peer
-uv run .\app.py bgp peer-create `
-  --name bgp-onprem `
-  --local-device vpn-gw-weu `
-  --local-asn 65515 `
-  --local-ip 10.100.255.2 `
-  --remote-device onprem-router `
-  --remote-asn 65010 `
-  --remote-ip 10.100.255.1
-List BGP Peers
-uv run .\app.py bgp peer-list
+## Routing
 
-Expected:
+- [ ] More complete route tables
+- [ ] User Defined Routes
+- [ ] Longest Prefix Match
+- [ ] System routes
+- [ ] Route propagation
+- [ ] Next-hop inspection
+- [ ] Route visualization
 
-NAME          LOCAL ASN   REMOTE ASN   STATE
--------------------------------------------------
-bgp-onprem    65515       65010        Established
-Advertise a Route
+## Hybrid Networking
 
-Simulate the on-prem router advertising:
+- [ ] Azure Route Server
+- [ ] NVA
+- [ ] BGP between NVA and Route Server
+- [ ] Multiple BGP peers
+- [ ] Route propagation through NVA
+- [ ] Active/active scenarios
 
-10.100.0.0/16
-uv run .\app.py bgp advertise `
-  --peer bgp-onprem `
-  --prefix 10.100.0.0/16
-Learn a BGP Route
-uv run .\app.py bgp learn `
-  --peer bgp-onprem `
-  --prefix 10.100.0.0/16
-🔀 Hybrid Networking Lab
+## Enterprise Connectivity
 
-A complete VPN + BGP scenario can be represented as:
+- [ ] ExpressRoute
+- [ ] ExpressRoute private peering
+- [ ] ExpressRoute Gateway
+- [ ] ExpressRoute + VPN coexistence
+- [ ] Virtual WAN
+- [ ] Virtual Hub
 
-                    AZURE
-        ┌────────────────────────┐
-        │       vnet-weu         │
-        │                        │
-        │   10.10.0.0/16         │
-        │                        │
-        │   ┌──────────────┐     │
-        │   │ VPN Gateway  │     │
-        │   │ ASN 65515    │     │
-        │   └──────┬───────┘     │
-        └──────────┼─────────────┘
-                   │
-                IPsec VPN
-                   │
-                  BGP
-                   │
-        ┌──────────┴─────────────┐
-        │        ON-PREM         │
-        │                        │
-        │   ASN 65010            │
-        │                        │
-        │   10.100.0.0/16        │
-        └────────────────────────┘
+## Azure Network Services
 
-Then:
+- [ ] Azure Firewall
+- [ ] NAT Gateway
+- [ ] Load Balancer
+- [ ] Application Gateway
+- [ ] Private Endpoint
+- [ ] Private DNS
 
-uv run .\app.py route simulate `
-  --source 10.10.1.10 `
-  --destination 10.100.1.10
+## Service Provider / Telco
 
-Expected:
+- [ ] Multiple ASNs
+- [ ] Provider Edge / Customer Edge concepts
+- [ ] BGP route reflection concepts
+- [ ] Multi-region connectivity
+- [ ] EVPN / VXLAN concepts
+- [ ] Internet edge scenarios
+- [ ] CGNAT concepts
+- [ ] Hybrid cloud / Telco architectures
 
-✓ HYBRID ROUTE
+---
 
-Transport: IPsec VPN
-Routing:   BGP
-📡 Azure Route Server
+# ⚠️ Educational Scope
 
-Azure Route Server allows network virtual appliances to exchange routes dynamically using BGP.
+This project is a **local networking simulator**, not an Azure emulator.
 
-Conceptually:
+It does not:
 
-                  Azure VNet
-                      │
-        ┌─────────────┴─────────────┐
-        │                           │
-        ▼                           ▼
-   Route Server                   NVA
-   ASN 65515                    ASN 65050
-        │                           │
-        └──────────── BGP ──────────┘
-Create
-uv run .\app.py route-server create `
-  --name ars-weu `
-  --vnet vnet-weu `
-  --subnet RouteServerSubnet `
-  --asn 65515
-List
-uv run .\app.py route-server list
-Add Route Server Peer
-uv run .\app.py route-server peer `
-  --route-server ars-weu `
-  --peer nva-fw
-🧱 Network Virtual Appliance
+- create real Azure resources
+- send real network packets
+- establish real IPsec tunnels
+- establish real BGP sessions
+- connect to Azure
+- require an Azure subscription
 
-Create a simulated NVA.
+Some Azure behavior is intentionally simplified so that the underlying networking concepts are easier to experiment with.
 
-Examples:
+---
 
-Firewall
-Router
-SD-WAN appliance
-Network security appliance
-uv run .\app.py nva create `
-  --name nva-fw `
-  --vnet vnet-weu `
-  --subnet app `
-  --ip-address 10.10.2.10 `
-  --asn 65050
-List
-uv run .\app.py nva list
-⚡ ExpressRoute
+# 📁 Project Structure
 
-ExpressRoute represents a private connectivity model between Azure and an external network.
-
-Example:
-
-                    Azure
-                      │
-                      │
-               ExpressRoute
-                      │
-                      │
-                ISP / Provider
-                      │
-                      │
-                   On-Prem
-Create Circuit
-uv run .\app.py expressroute create `
-  --name er-weu `
-  --provider Contoso `
-  --location Amsterdam `
-  --bandwidth 1Gbps `
-  --asn 65010
-Configure Peering
-uv run .\app.py expressroute peer `
-  --circuit er-weu `
-  --peering-type private `
-  --vlan 100 `
-  --peer-asn 65010 `
-  --peer-ip 192.0.2.2
-List
-uv run .\app.py expressroute list
-🌍 Virtual WAN
-
-Virtual WAN provides a hub-based architecture for large-scale connectivity.
-
-Conceptually:
-
-                    Azure Virtual WAN
-                           │
-             ┌─────────────┴─────────────┐
-             │                           │
-          Hub WEU                     Hub NEU
-             │                           │
-       ┌─────┴─────┐               ┌─────┴─────┐
-       │            │               │           │
-      VNet         VPN             VNet        VPN
-Create Virtual WAN
-uv run .\app.py wan create `
-  --name vwan-global `
-  --type Standard
-Create Hub
-uv run .\app.py wan hub-create `
-  --wan vwan-global `
-  --name hub-weu `
-  --vnet vnet-weu `
-  --location westeurope
-List
-uv run .\app.py wan list
-🧪 Example AZ-700 Lab
-
-Recommended topology:
-
-                         ┌───────────────────────┐
-                         │     Azure WEU         │
-                         │                       │
-                         │    vnet-weu           │
-                         │    10.10.0.0/16       │
-                         │                       │
-                         │  ┌───────────────┐    │
-                         │  │ Web Subnet    │    │
-                         │  │ 10.10.1.0/24  │    │
-                         │  └───────────────┘    │
-                         │                       │
-                         │  ┌───────────────┐    │
-                         │  │ NVA           │    │
-                         │  │ 10.10.2.10    │    │
-                         │  └───────┬───────┘    │
-                         │          │             │
-                         │    Route Server        │
-                         │          │             │
-                         │    VPN Gateway         │
-                         └──────────┼─────────────┘
-                                    │
-                                 IPsec
-                                    │
-                                   BGP
-                                    │
-                         ┌──────────┴─────────────┐
-                         │       ON-PREM          │
-                         │                        │
-                         │ ASN 65010              │
-                         │                        │
-                         │ 10.100.0.0/16          │
-                         └────────────────────────┘
-🧭 Recommended Learning Path
-
-If you are using this project to prepare for AZ-700, follow this order.
-
-🟢 Level 1 — Core Networking
- Resource Groups
- VNets
- Subnets
- VNet Peering
-🟡 Level 2 — Security
- NSGs
- NSG rules
- Subnet associations
-🟠 Level 3 — Routing
- Route Tables
- UDR
- Next Hop
- Route simulation
-🔵 Level 4 — Hybrid
- VPN Gateway
- Local Network Gateway
- IPsec
- BGP
- Hybrid route simulation
-🟣 Level 5 — Advanced Networking
- Route Server
- NVA
- BGP with NVA
- ExpressRoute
- Virtual WAN
-🧠 Networking Concepts Covered
-Concept	Simulator
-IPv4 addressing	✅
-CIDR	✅
-VNet	✅
-Subnet	✅
-VNet Peering	✅
-NSG	✅
-NSG Rules	✅
-Route Tables	✅
-UDR	✅
-Next Hop	✅
-Route Selection	✅
-VPN Gateway	✅
-IPsec	✅
-BGP	✅
-ASN	✅
-Route Server	✅
-NVA	✅
-ExpressRoute	✅
-Virtual WAN	✅
-Hybrid Routing	✅
-⚠️ Important
-
-This project is an educational simulator.
-
-It does not reproduce every internal Azure routing behavior.
-
-For example:
-
-Azure control-plane behavior is simplified.
-Real BGP timers are not implemented.
-No real packets are transmitted.
-No IPsec tunnel is established.
-No actual Azure resources are deployed.
-Route propagation is simulated.
-ExpressRoute is simulated.
-Route Server is simulated.
-
-The goal is to understand:
-
-Architecture, routing decisions, connectivity models and networking concepts.
-
-It is not intended to emulate Azure's complete dataplane.
-
-🛠️ Project Structure
+```text
 Azure/
 │
 ├── app.py
@@ -665,168 +543,87 @@ Azure/
     ├── __init__.py
     ├── cli.py
     └── state.py
-💾 State
+```
 
-The simulator stores its topology in:
+---
 
+# 💾 Local State
+
+The simulated environment is stored in:
+
+```text
 data/state.json
+```
 
-Resources created with the CLI remain available between executions.
+Resources created through the CLI remain available between executions.
 
-Example:
+---
 
-uv run .\app.py vnet list
+# 🔧 Git Workflow
 
-will show the VNets previously created.
+Check changes:
 
-🔎 Useful Commands
+```powershell
+git status
+```
 
-Show general help:
+Stage changes:
 
-uv run .\app.py --help
+```powershell
+git add .
+```
 
-Show resource-specific help:
+Commit:
 
-uv run .\app.py group --help
-uv run .\app.py vnet --help
-uv run .\app.py subnet --help
-uv run .\app.py peering --help
-uv run .\app.py nsg --help
-uv run .\app.py route --help
-uv run .\app.py vpn --help
-uv run .\app.py bgp --help
-uv run .\app.py route-server --help
-uv run .\app.py nva --help
-uv run .\app.py expressroute --help
-uv run .\app.py wan --help
-🧪 End-to-End Hybrid Scenario
+```powershell
+git commit -m "feat: describe the change"
+```
 
-Create the resource group:
+Push:
 
-uv run .\app.py group create `
-  --name rg-weu `
-  --location westeurope
+```powershell
+git push
+```
 
-Create the VNet:
+---
 
-uv run .\app.py vnet create `
-  --resource-group rg-weu `
-  --name vnet-weu `
-  --address-prefix 10.10.0.0/16
+# 🎓 Learning Path
 
-Create the subnet:
+The intended progression is:
 
-uv run .\app.py subnet create `
-  --resource-group rg-weu `
-  --vnet vnet-weu `
-  --name web `
-  --address-prefix 10.10.1.0/24
+```text
+Azure Fundamentals
+        │
+        ▼
+VNet / Subnets
+        │
+        ▼
+Peering / NSG
+        │
+        ▼
+Routing / UDR
+        │
+        ▼
+VPN / IPsec
+        │
+        ▼
+BGP
+        │
+        ▼
+Hybrid Networking
+        │
+        ▼
+Route Server / NVA
+        │
+        ▼
+ExpressRoute / Virtual WAN
+        │
+        ▼
+Service Provider / Telco
+```
 
-Create VPN Gateway:
+---
 
-uv run .\app.py vpn gateway-create `
-  --name vpn-gw-weu `
-  --vnet vnet-weu `
-  --sku VpnGw1 `
-  --asn 65515
+## ☁️ Local. Free. No Azure Subscription.
 
-Create on-premises network:
-
-uv run .\app.py vpn local-create `
-  --name onprem-weu `
-  --ip-address 203.0.113.10 `
-  --address-prefixes 10.100.0.0/16 `
-  --asn 65010 `
-  --bgp-peering-address 10.100.255.1
-
-Create VPN connection:
-
-uv run .\app.py vpn connection-create `
-  --name vpn-onprem-weu `
-  --vpn-gateway vpn-gw-weu `
-  --local-gateway onprem-weu `
-  --bgp
-
-Create BGP peer:
-
-uv run .\app.py bgp peer-create `
-  --name bgp-onprem `
-  --local-device vpn-gw-weu `
-  --local-asn 65515 `
-  --local-ip 10.100.255.2 `
-  --remote-device onprem-router `
-  --remote-asn 65010 `
-  --remote-ip 10.100.255.1
-
-Advertise the on-premises network:
-
-uv run .\app.py bgp advertise `
-  --peer bgp-onprem `
-  --prefix 10.100.0.0/16
-
-Learn the route:
-
-uv run .\app.py bgp learn `
-  --peer bgp-onprem `
-  --prefix 10.100.0.0/16
-
-Finally simulate:
-
-uv run .\app.py route simulate `
-  --source 10.10.1.10 `
-  --destination 10.100.1.10
-🎓 Project Goal
-
-The long-term goal is to provide a free local networking lab for practicing:
-
-Azure Networking
-       │
-       ├── VNet
-       ├── Subnet
-       ├── NSG
-       ├── UDR
-       ├── Peering
-       │
-       ├── VPN
-       ├── BGP
-       ├── Route Server
-       ├── NVA
-       ├── ExpressRoute
-       └── Virtual WAN
-
-without requiring an Azure subscription.
-
-🚧 Roadmap
-
-Future versions may include:
-
-🔄 BGP route propagation
-🧠 Longest Prefix Match visualization
-🗺️ Interactive topology
-🔥 Azure Firewall simulation
-🌐 NAT Gateway
-🔀 Azure Load Balancer
-🚪 Application Gateway
-🌍 Private Endpoints
-🔐 Private DNS
-🧩 Azure Firewall + Route Server
-🛰️ SD-WAN scenarios
-🌎 Multi-region architectures
-📡 Service Provider / Telco scenarios
-📊 Route table visualization
-🧮 More realistic BGP path selection
-🧭 AS-path simulation
-🏷️ Route tagging
-🔁 Route propagation
-🛡️ Security policy simulation
-👨‍💻 Educational Project
-
-Built as a personal Azure Networking / AZ-700 laboratory.
-
-The focus is on understanding:
-
-How Azure networking works, how routes are selected and how Azure connects to external networks.
-
-☁️ Learn Azure Networking Without Spending Money
-
-Local. Free. No subscription required.
+**Learn Azure Networking by building the network yourself.**
