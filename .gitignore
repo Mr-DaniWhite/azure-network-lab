@@ -8,3 +8,5 @@ wheels/
 
 # Virtual environments
 .venv
+# Azure Network Simulator local state
+data/state.json
