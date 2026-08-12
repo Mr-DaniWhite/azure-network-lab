@@ -22,6 +22,11 @@ def default_state():
         "expressroute_circuits": {},
         "expressroute_peerings": {},
         "expressroute_routes": [],
+        "route_servers": {},
+        "nvas": {},
+        "route_server_peers": {},
+        "hybrid_coexistence": {},
+        "nva_routes": [],
     }
 
 
@@ -75,6 +80,18 @@ def load_state():
         item.setdefault("name", name)
     for name, item in state["expressroute_peerings"].items():
         item.setdefault("name", name)
+
+    for name, item in state["route_servers"].items():
+        item.setdefault("name", name)
+        item.setdefault("state", "Succeeded")
+        item.setdefault("peerings", {})
+    for name, item in state["nvas"].items():
+        item.setdefault("name", name)
+        item.setdefault("state", "Succeeded")
+        item.setdefault("route_server", None)
+    for name, item in state["route_server_peers"].items():
+        item.setdefault("name", name)
+        item.setdefault("state", "Established")
 
     # Normalize legacy VNet peerings. Older versions may store peerings as:
     #   [{"source_vnet": "...", "remote_vnet": "..."}]
@@ -1134,6 +1151,277 @@ def simulate_route(args, state):
 
 
 # ---------------------------------------------------------------------------
+# AZURE ROUTE SERVER / NVA / HYBRID COEXISTENCE
+# ---------------------------------------------------------------------------
+
+def route_server_create(args, state):
+    if args.name in state["route_servers"]:
+        fail(f"Route Server already exists: {args.name}")
+        return
+    if args.vnet not in state["vnets"]:
+        fail(f"VNet not found: {args.vnet}")
+        return
+    if args.subnet and args.subnet not in state["vnets"][args.vnet].get("subnets", {}):
+        fail(f"Subnet not found: {args.vnet}/{args.subnet}")
+        return
+    state["route_servers"][args.name] = {
+        "name": args.name, "vnet": args.vnet, "subnet": args.subnet,
+        "asn": args.asn, "state": "Succeeded", "peerings": {}
+    }
+    save_state(state)
+    ok("Azure Route Server created")
+    print(f"Name:       {args.name}")
+    print(f"VNet:       {args.vnet}")
+    print(f"Subnet:     {args.subnet or '-'}")
+    print(f"ASN:        {args.asn}")
+    print("State:      Succeeded")
+    print("Mode:       LOCAL SIMULATION")
+
+
+def route_server_list(args, state):
+    print("\n## NAME                 VNET                 ASN        STATE")
+    print("-" * 75)
+    for rs in state["route_servers"].values():
+        print(f"{rs['name']:<22}{rs['vnet']:<21}{rs['asn']:<11}{rs.get('state','-')}")
+
+
+def nva_create(args, state):
+    if args.name in state["nvas"]:
+        fail(f"NVA already exists: {args.name}")
+        return
+    vnet = state["vnets"].get(args.vnet)
+    if not vnet:
+        fail(f"VNet not found: {args.vnet}")
+        return
+    if args.subnet not in vnet.get("subnets", {}):
+        fail(f"Subnet not found: {args.vnet}/{args.subnet}")
+        return
+    if not prefix_contains(vnet["address_prefix"], args.private_ip):
+        fail(f"NVA private IP is outside VNet address space: {args.private_ip}")
+        return
+    state["nvas"][args.name] = {
+        "name": args.name, "vnet": args.vnet, "subnet": args.subnet,
+        "private_ip": args.private_ip, "asn": args.asn,
+        "state": "Succeeded", "route_server": None
+    }
+    save_state(state)
+    ok("NVA created")
+    print(f"Name:        {args.name}")
+    print(f"VNet:        {args.vnet}")
+    print(f"Subnet:      {args.subnet}")
+    print(f"Private IP:  {args.private_ip}")
+    print(f"ASN:         {args.asn}")
+    print("State:       Succeeded")
+    print("Mode:        LOCAL SIMULATION")
+
+
+def nva_list(args, state):
+    print("\n## NAME                 VNET                 SUBNET       IP              ASN")
+    print("-" * 90)
+    for nva in state["nvas"].values():
+        print(f"{nva['name']:<22}{nva['vnet']:<21}{nva['subnet']:<13}{nva['private_ip']:<16}{nva['asn']}")
+
+
+def route_server_peer_create(args, state):
+    rs = state["route_servers"].get(args.route_server)
+    nva = state["nvas"].get(args.nva)
+    if not rs:
+        fail(f"Route Server not found: {args.route_server}")
+        return
+    if not nva:
+        fail(f"NVA not found: {args.nva}")
+        return
+    if rs["vnet"] != nva["vnet"]:
+        fail("Route Server and NVA must be in the same VNet for this simulation")
+        return
+    if args.name in state["route_server_peers"]:
+        fail(f"Route Server peer already exists: {args.name}")
+        return
+    state["route_server_peers"][args.name] = {
+        "name": args.name, "route_server": args.route_server, "nva": args.nva,
+        "route_server_asn": rs["asn"], "route_server_ip": args.route_server_ip,
+        "nva_asn": nva["asn"], "nva_ip": nva["private_ip"], "state": "Established"
+    }
+    rs.setdefault("peerings", {})[args.name] = args.nva
+    nva["route_server"] = args.route_server
+    save_state(state)
+    ok("Route Server BGP peer created")
+    print(f"Name:             {args.name}")
+    print(f"Route Server:     {args.route_server}")
+    print(f"Route Server ASN: {rs['asn']}")
+    print(f"Route Server IP:  {args.route_server_ip}")
+    print(f"NVA:              {args.nva}")
+    print(f"NVA ASN:          {nva['asn']}")
+    print(f"NVA IP:           {nva['private_ip']}")
+    print("State:            Established")
+
+
+def route_server_peer_list(args, state):
+    print("\n## NAME                 ROUTE SERVER         NVA                  STATE")
+    print("-" * 80)
+    for peer in state["route_server_peers"].values():
+        print(f"{peer['name']:<22}{peer['route_server']:<21}{peer['nva']:<21}{peer.get('state','-')}")
+
+
+def nva_advertise(args, state):
+    nva = state["nvas"].get(args.nva)
+    if not nva:
+        fail(f"NVA not found: {args.nva}")
+        return
+    if not nva.get("route_server"):
+        fail(f"NVA {args.nva} is not connected to a Route Server")
+        return
+    route = {
+        "nva": args.nva, "prefix": args.prefix, "next_hop": nva["private_ip"],
+        "route_server": nva["route_server"], "direction": "advertised"
+    }
+    if route not in state["nva_routes"]:
+        state["nva_routes"].append(route)
+    save_state(state)
+    ok("NVA route advertised to Route Server")
+    print(f"NVA:          {args.nva}")
+    print(f"Route Server: {nva['route_server']}")
+    print(f"Prefix:       {args.prefix}")
+    print(f"Next Hop:     {nva['private_ip']}")
+
+
+def nva_route_list(args, state):
+    print("\n## NVA                  PREFIX              NEXT HOP        ROUTE SERVER")
+    print("-" * 85)
+    for route in state["nva_routes"]:
+        print(f"{route['nva']:<22}{route['prefix']:<20}{route['next_hop']:<16}{route['route_server']}")
+
+
+def hybrid_coexistence_create(args, state):
+    if args.name in state["hybrid_coexistence"]:
+        fail(f"Hybrid coexistence profile already exists: {args.name}")
+        return
+    checks = [
+        ("VNet", "vnets", args.vnet),
+        ("VPN Gateway", "vpn_gateways", args.vpn_gateway),
+        ("ExpressRoute circuit", "expressroute_circuits", args.circuit),
+        ("Route Server", "route_servers", args.route_server),
+        ("NVA", "nvas", args.nva),
+    ]
+    for label, collection, name in checks:
+        if name not in state[collection]:
+            fail(f"{label} not found: {name}")
+            return
+    state["hybrid_coexistence"][args.name] = {
+        "name": args.name, "vnet": args.vnet, "vpn_gateway": args.vpn_gateway,
+        "expressroute_circuit": args.circuit, "route_server": args.route_server,
+        "nva": args.nva, "state": "Active"
+    }
+    save_state(state)
+    ok("Hybrid VPN + ExpressRoute coexistence profile created")
+    print(f"Name:             {args.name}")
+    print(f"VNet:             {args.vnet}")
+    print(f"VPN Gateway:      {args.vpn_gateway}")
+    print(f"ExpressRoute:     {args.circuit}")
+    print(f"Route Server:     {args.route_server}")
+    print(f"NVA:              {args.nva}")
+    print("State:            Active")
+    print("Mode:             LOCAL SIMULATION")
+
+
+def hybrid_coexistence_list(args, state):
+    print("\n## NAME                 VNET                 VPN GATEWAY           EXPRESSROUTE")
+    print("-" * 95)
+    for item in state["hybrid_coexistence"].values():
+        print(f"{item['name']:<22}{item['vnet']:<21}{item['vpn_gateway']:<21}{item['expressroute_circuit']}")
+
+
+def hybrid_route_list(args, state):
+    print("\n## HYBRID ROUTING SOURCES")
+    print("-" * 80)
+    print("ExpressRoute routes:")
+    for route in state["expressroute_routes"]:
+        print(f"  ER   {route['prefix']:<20} circuit={route['circuit']}")
+    print("VPN/BGP routes:")
+    for route in state["bgp_routes"]:
+        print(f"  VPN  {route['prefix']:<20} peer={route['peer']} direction={route['direction']}")
+    print("NVA/Route Server routes:")
+    for route in state["nva_routes"]:
+        print(f"  NVA  {route['prefix']:<20} nva={route['nva']} next-hop={route['next_hop']}")
+
+
+def simulate_hybrid_route(args, state):
+    source_vnet, source_subnet = find_source_location(state, args.source)
+    if not source_vnet:
+        fail("Source IP does not belong to a simulated VNet")
+        return
+    source_vnet_name = source_vnet.get("name")
+    source_subnet_name = source_subnet.get("name") if source_subnet else None
+    print(f"\nSource:       {args.source}")
+    print(f"Destination:  {args.destination}")
+    print(f"\nSource VNet:       {source_vnet_name}")
+    print(f"Source Subnet:     {source_subnet_name or 'N/A'}")
+    print("\nDestination:       HYBRID / EXTERNAL")
+
+    candidates = []
+    if source_subnet_name:
+        udr = find_route_table_route(state, source_vnet_name, source_subnet_name, args.destination)
+        if udr:
+            prefix_len = ipaddress.ip_network(udr["address_prefix"], strict=False).prefixlen
+            candidates.append((prefix_len, 100, "UDR", udr))
+    for route in state.get("expressroute_routes", []):
+        if prefix_contains(route["prefix"], args.destination):
+            prefix_len = ipaddress.ip_network(route["prefix"], strict=False).prefixlen
+            candidates.append((prefix_len, 90, "ExpressRoute", route))
+    for route in state.get("bgp_routes", []):
+        if prefix_contains(route["prefix"], args.destination):
+            prefix_len = ipaddress.ip_network(route["prefix"], strict=False).prefixlen
+            candidates.append((prefix_len, 80, "VPN", route))
+    for route in state.get("nva_routes", []):
+        if prefix_contains(route["prefix"], args.destination):
+            prefix_len = ipaddress.ip_network(route["prefix"], strict=False).prefixlen
+            candidates.append((prefix_len, 70, "NVA", route))
+
+    if not candidates:
+        print("\n## RESULT")
+        fail("No simulated hybrid route found")
+        return
+
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    prefix_len, _, transport, route = candidates[0]
+    print("\n## RESULT")
+    if transport == "UDR":
+        print("\n[OK] USER DEFINED ROUTE")
+        print(f"Route:            {route['name']}")
+        print(f"Next Hop Type:    {route['next_hop_type']}")
+        print(f"Next Hop IP:      {route.get('next_hop_ip') or '-'}")
+        print(f"Destination Prefix: {route['address_prefix']}")
+    elif transport == "ExpressRoute":
+        circuit = state["expressroute_circuits"].get(route["circuit"])
+        print("\n[OK] EXPRESSROUTE ROUTE")
+        print("Transport: ExpressRoute")
+        print(f"Circuit:   {route['circuit']}")
+        print(f"Provider:  {circuit.get('provider', '-') if circuit else '-'}")
+        print(f"Peering:   {route['peering_type']}")
+        print("Routing:   BGP")
+        print(f"Destination Prefix: {route['prefix']}")
+    elif transport == "VPN":
+        peer = state["bgp_peers"].get(route["peer"])
+        print("\n[OK] VPN / BGP ROUTE")
+        print("Transport: IPsec VPN")
+        print(f"BGP Peer:  {route['peer']}")
+        if peer:
+            print(f"VPN Gateway: {peer.get('local_device', '-')}")
+        print("Routing:   BGP")
+        print(f"Destination Prefix: {route['prefix']}")
+    else:
+        nva = state["nvas"].get(route["nva"])
+        print("\n[OK] ROUTE SERVER / NVA ROUTE")
+        print("Transport: Virtual network / NVA")
+        print(f"Route Server: {route['route_server']}")
+        print(f"NVA:          {route['nva']}")
+        print(f"Next Hop:     {route['next_hop']}")
+        print(f"NVA ASN:      {nva.get('asn', '-') if nva else '-'}")
+        print(f"Destination Prefix: {route['prefix']}")
+    print(f"Prefix Length:     /{prefix_len}")
+    print("Selection Model:   Longest Prefix + simulated source preference")
+
+# ---------------------------------------------------------------------------
 # SHOW / INSPECTION
 # ---------------------------------------------------------------------------
 
@@ -1266,6 +1554,41 @@ def show_running_config(args, state):
     else:
         print("  routes: (none)")
 
+    print("\n## AZURE ROUTE SERVER")
+    if state["route_servers"]:
+        for name, rs in state["route_servers"].items():
+            print(f"  route-server {name} vnet={rs['vnet']} subnet={rs.get('subnet','-')} asn={rs['asn']} state={rs.get('state','-')}")
+    else:
+        print("  route servers: (none)")
+
+    print("\n## NVA")
+    if state["nvas"]:
+        for name, nva in state["nvas"].items():
+            print(f"  nva {name} vnet={nva['vnet']} subnet={nva['subnet']} ip={nva['private_ip']} asn={nva['asn']} route-server={nva.get('route_server') or '-'}")
+    else:
+        print("  nvas: (none)")
+
+    print("\n## ROUTE SERVER BGP PEERS")
+    if state["route_server_peers"]:
+        for name, peer in state["route_server_peers"].items():
+            print(f"  peer {name} rs={peer['route_server']} nva={peer['nva']} rs-asn={peer['route_server_asn']} nva-asn={peer['nva_asn']} state={peer.get('state','-')}")
+    else:
+        print("  peers: (none)")
+
+    print("\n## NVA ROUTES")
+    if state["nva_routes"]:
+        for route in state["nva_routes"]:
+            print(f"  route {route['prefix']} nva={route['nva']} next-hop={route['next_hop']} route-server={route['route_server']}")
+    else:
+        print("  routes: (none)")
+
+    print("\n## HYBRID VPN + EXPRESSROUTE COEXISTENCE")
+    if state["hybrid_coexistence"]:
+        for name, item in state["hybrid_coexistence"].items():
+            print(f"  profile {name} vnet={item['vnet']} vpn={item['vpn_gateway']} expressroute={item['expressroute_circuit']} route-server={item['route_server']} nva={item['nva']} state={item.get('state','-')}")
+    else:
+        print("  profiles: (none)")
+
     print("\n## EXPRESSROUTE")
     if state["expressroute_circuits"]:
         for name, circuit in state["expressroute_circuits"].items():
@@ -1385,6 +1708,26 @@ def show_resource(args, state):
         print("\n## BGP ROUTES")
         for route in state["bgp_routes"]:
             print(f"{route.get('direction','-'):<12}{route.get('prefix','-'):<20}peer={route.get('peer','-')}")
+        return
+
+    if target == "route-server":
+        route_server_list(args, state)
+        return
+
+    if target == "nva":
+        nva_list(args, state)
+        return
+
+    if target in ("route-server-peers", "route-server-peer"):
+        route_server_peer_list(args, state)
+        return
+
+    if target in ("nva-routes", "hybrid-routes"):
+        hybrid_route_list(args, state)
+        return
+
+    if target == "coexistence":
+        hybrid_coexistence_list(args, state)
         return
 
     if target == "expressroute":
@@ -1610,6 +1953,53 @@ def build_parser():
     )
     p.add_argument("--prefix", required=True)
 
+    # ROUTE SERVER
+    rs = resources.add_parser("route-server", help="Azure Route Server simulation")
+    rs_cmd = rs.add_subparsers(dest="command", required=True)
+    p = rs_cmd.add_parser("create")
+    p.add_argument("--name", required=True)
+    p.add_argument("--vnet", required=True)
+    p.add_argument("--subnet")
+    p.add_argument("--asn", required=True, type=int)
+    rs_cmd.add_parser("list")
+    p = rs_cmd.add_parser("peer-create")
+    p.add_argument("--name", required=True)
+    p.add_argument("--route-server", required=True)
+    p.add_argument("--nva", required=True)
+    p.add_argument("--route-server-ip", required=True)
+    rs_cmd.add_parser("peer-list")
+
+    # NVA
+    nva = resources.add_parser("nva", help="Network Virtual Appliance simulation")
+    nva_cmd = nva.add_subparsers(dest="command", required=True)
+    p = nva_cmd.add_parser("create")
+    p.add_argument("--name", required=True)
+    p.add_argument("--vnet", required=True)
+    p.add_argument("--subnet", required=True)
+    p.add_argument("--private-ip", required=True)
+    p.add_argument("--asn", required=True, type=int)
+    nva_cmd.add_parser("list")
+    p = nva_cmd.add_parser("advertise")
+    p.add_argument("--nva", required=True)
+    p.add_argument("--prefix", required=True)
+    nva_cmd.add_parser("route-list")
+
+    # HYBRID COEXISTENCE
+    hybrid = resources.add_parser("hybrid", help="VPN + ExpressRoute + Route Server + NVA coexistence")
+    hybrid_cmd = hybrid.add_subparsers(dest="command", required=True)
+    p = hybrid_cmd.add_parser("create")
+    p.add_argument("--name", required=True)
+    p.add_argument("--vnet", required=True)
+    p.add_argument("--vpn-gateway", required=True)
+    p.add_argument("--circuit", required=True)
+    p.add_argument("--route-server", required=True)
+    p.add_argument("--nva", required=True)
+    hybrid_cmd.add_parser("list")
+    p = hybrid_cmd.add_parser("route-simulate")
+    p.add_argument("--source", required=True)
+    p.add_argument("--destination", required=True)
+    hybrid_cmd.add_parser("route-list")
+
     # SHOW
     show = resources.add_parser(
         "show",
@@ -1632,6 +2022,12 @@ def build_parser():
         "vpn",
         "bgp",
         "expressroute",
+        "route-server",
+        "nva",
+        "route-server-peers",
+        "nva-routes",
+        "hybrid-routes",
+        "coexistence",
     ):
         p = show_cmd.add_parser(target)
         if target == "vnet":
@@ -1694,6 +2090,18 @@ def main():
         ("expressroute", "peer"): expressroute_peer,
         ("expressroute", "peer-list"): expressroute_peer_list,
         ("expressroute", "advertise"): expressroute_advertise,
+        ("route-server", "create"): route_server_create,
+        ("route-server", "list"): route_server_list,
+        ("route-server", "peer-create"): route_server_peer_create,
+        ("route-server", "peer-list"): route_server_peer_list,
+        ("nva", "create"): nva_create,
+        ("nva", "list"): nva_list,
+        ("nva", "advertise"): nva_advertise,
+        ("nva", "route-list"): nva_route_list,
+        ("hybrid", "create"): hybrid_coexistence_create,
+        ("hybrid", "list"): hybrid_coexistence_list,
+        ("hybrid", "route-simulate"): simulate_hybrid_route,
+        ("hybrid", "route-list"): hybrid_route_list,
     }
 
     handler = handlers.get((args.resource, args.command))
