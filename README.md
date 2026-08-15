@@ -1018,6 +1018,69 @@ uv run .\app.py hybrid route-simulate `
 
 ---
 
+## Web Portal
+
+The simulator now includes a browser-based management and observability portal.
+
+The web portal provides a visual layer over the existing simulator while keeping the CLI and simulator state as the source of truth.
+
+### Portal capabilities
+
+| Area | Capabilities |
+|---|---|
+| Dashboard | Lab overview, resource counters and control-plane status |
+| Build Lab | Create and manage simulated Azure networking resources from the browser |
+| Topology | Interactive network map with draggable resources and persistent layout |
+| Resources | Inspect the current simulated Azure resources |
+| Route Simulator | Test source-to-destination routing decisions |
+| Show / CLI | Inspect the same simulated state exposed by the CLI |
+| Network Health | Monitor VPN, BGP, Route Server, NVA and ExpressRoute state |
+| Hybrid Routing | Visualise VPN + ExpressRoute coexistence |
+| Route Server | Simulate Azure Route Server and NVA BGP relationships |
+| NVA | Advertise prefixes and inspect NVA routes |
+| EVE-NG | Architecture prepared for integration with external network labs |
+
+### Network topology
+
+The topology view represents relationships between:
+
+- Azure VNets and subnets
+- Azure Route Server
+- NVAs
+- BGP peers
+- VPN gateways
+- Local network gateways
+- ExpressRoute circuits and peerings
+- Advertised routes
+- Hybrid connectivity paths
+
+Resources can be moved around the topology canvas to create a clearer representation of the lab. Node positions are persisted locally in the browser.
+
+### Network Health
+
+The dashboard includes a control-plane health monitor that derives status from the simulator state.
+
+It reports the current state of:
+
+- VNets
+- Route Server
+- NVA
+- BGP peers
+- VPN gateways and connections
+- ExpressRoute circuits and peerings
+- Advertised routes
+
+The dashboard therefore provides an operational overview without replacing the CLI.
+
+### Running the web portal
+
+Install the web dependencies and start the portal with:
+
+```powershell
+uv run uvicorn web:app --reload
+
+```
+
 ## ☁️ Azure Networking Lab
 
 This project is not intended to replace Azure.

@@ -1,0 +1,92 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Azure Network Lab</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><img class="brand-logo" src="/static/github-logo.png" alt="Daniel Blanco GitHub logo"><div><strong>Azure Network Lab</strong><small>Local networking simulator · by Daniel Blanco</small></div></div>
+  <div class="top-actions"><a class="github-link" href="https://github.com/Mr-DaniWhite/azure-network-lab" target="_blank" rel="noopener">GitHub ↗</a><span class="status">● ONLINE</span><button class="ghost" onclick="loadAll()">Refresh</button></div>
+</header>
+
+<div class="layout">
+<aside class="sidebar">
+  <div class="nav-title">LAB</div>
+  <button class="nav active" data-view="dashboard">⌂ <span>Dashboard</span></button>
+  <button class="nav" data-view="builder">＋ <span>Build Lab</span></button>
+  <button class="nav" data-view="topology">◇ <span>Topology</span></button>
+  <button class="nav" data-view="resources">▦ <span>Resources</span></button>
+  <button class="nav" data-view="routes">⇢ <span>Route Simulator</span></button>
+  <button class="nav" data-view="show">▤ <span>Show / CLI</span></button>
+  <button class="nav" data-view="templates">▣ <span>Lab Templates</span></button>
+  <div class="sidebar-bottom">
+    <button class="danger-link" onclick="resetLab()">⚠ Reset Lab</button>
+  </div>
+</aside>
+
+<main>
+<section id="dashboard" class="view active">
+  <div class="hero"><div><small>LOCAL AZURE NETWORKING LAB</small><h1>Build the network.<br><em>Understand the route.</em></h1><p>Manage the simulator from the browser while keeping the existing CLI as the source of truth.</p></div><button onclick="openView('builder')">＋ Create resource</button></div>
+  <div id="cards" class="cards"></div>
+  <div class="dashboard-grid">
+    <article class="panel health-panel">
+      <div class="panel-head"><div><small>CONTROL PLANE</small><h2>Network health</h2></div><span id="healthSummary" class="health-summary">● Checking...</span></div>
+      <div id="healthMonitor" class="health-monitor"></div>
+    </article>
+    <article class="panel activity-panel">
+      <div class="panel-head"><div><small>LAB STATUS</small><h2>Control plane</h2></div><button class="ghost" onclick="openView('topology')">Open topology</button></div>
+      <div class="status-overview">
+        <div class="status-overview-item"><span class="status-dot good"></span><div><strong>CLI source of truth</strong><small>Browser actions use the simulator API</small></div></div>
+        <div class="status-overview-item"><span class="status-dot good"></span><div><strong>Topology engine</strong><small>Relationships derived from current state</small></div></div>
+        <div class="status-overview-item"><span class="status-dot good"></span><div><strong>Route engine</strong><small>Use Route Simulator for path analysis</small></div></div>
+      </div>
+      <div class="activity-actions"><button onclick="openView('routes')">Open route simulator</button><button class="secondary" onclick="openView('resources')">View resources</button></div>
+    </article>
+  </div>
+</section>
+
+<section id="builder" class="view">
+  <div class="page-title"><small>BUILD LAB</small><h1>Create from scratch</h1><p>Each action calls the same <code>app.py</code> simulator used by PowerShell.</p></div>
+  <div class="builder-grid">
+    <article class="panel create-card"><h2>Core networking</h2>
+      <button onclick="openForm('group')">Resource Group</button><button onclick="openForm('vnet')">Virtual Network</button><button onclick="openForm('subnet')">Subnet</button><button onclick="openForm('peering')">VNet Peering</button><button onclick="openForm('nsg')">Network Security Group</button><button onclick="openForm('nsg-rule')">NSG Rule</button><button onclick="openForm('route-table')">Route Table</button><button onclick="openForm('route')">UDR Route</button>
+    </article>
+    <article class="panel create-card"><h2>Hybrid networking</h2>
+      <button onclick="openForm('vpn-gateway')">VPN Gateway</button><button onclick="openForm('local-gateway')">Local Network Gateway</button><button onclick="openForm('vpn-connection')">VPN Connection</button><button onclick="openForm('bgp-peer')">BGP Peer</button><button onclick="openForm('bgp-route')">BGP Advertise</button><button onclick="openForm('bgp-learn')">BGP Learn</button>
+    </article>
+    <article class="panel create-card"><h2>Advanced routing</h2>
+      <button onclick="openForm('route-server')">Azure Route Server</button><button onclick="openForm('rs-peer')">Route Server Peer</button><button onclick="openForm('nva')">NVA</button><button onclick="openForm('nva-route')">NVA Advertise</button><button onclick="openForm('hybrid')">VPN + ER Coexistence</button>
+    </article>
+    <article class="panel create-card"><h2>Enterprise connectivity</h2>
+      <button onclick="openForm('expressroute')">ExpressRoute Circuit</button><button onclick="openForm('er-peer')">ExpressRoute Peering</button><button onclick="openForm('er-route')">ExpressRoute Advertise</button><button onclick="openForm('wan')">Virtual WAN</button><button onclick="openForm('wan-hub')">Virtual WAN Hub</button>
+    </article>
+  </div>
+  <div id="formPanel" class="panel form-panel hidden"></div>
+</section>
+
+<section id="topology" class="view"><div class="page-title"><small>TOPOLOGY</small><h1>Network map</h1></div><div class="panel topology" id="topologyCanvas"></div></section>
+
+<section id="resources" class="view"><div class="page-title"><small>RESOURCES</small><h1>Current configuration</h1></div><div id="resourceTables"></div></section>
+
+<section id="routes" class="view"><div class="page-title"><small>ROUTING</small><h1>Route simulator</h1><p>Test the same routing engine exposed by the CLI.</p></div><div class="panel routebox"><div class="route-fields"><label>Source IP<input id="rs" value="10.10.1.10"></label><label>Destination IP<input id="rd" value="10.100.1.10"></label></div><div class="buttons"><button onclick="simulate('/api/route/simulate','routeOutput')">Route simulate</button><button class="secondary" onclick="simulate('/api/hybrid/route-simulate','routeOutput')">Hybrid route simulate</button></div><pre id="routeOutput">Ready.</pre></div></section>
+
+<section id="show" class="view"><div class="page-title"><small>NETWORK ENGINEER MODE</small><h1>Show / CLI</h1></div><div class="panel"><div class="showbar"><select id="showTarget" onchange="loadShow(this.value)"><option>vnet</option><option>vpn</option><option>bgp</option><option>expressroute</option><option>routes</option><option>route-server</option><option>nva</option><option>route-server-peers</option><option>nva-routes</option><option>coexistence</option></select><span>Equivalent to <code>uv run .\app.py show ...</code></span></div><pre id="showOutput">Loading...</pre></div></section>
+
+<section id="templates" class="view"><div class="page-title"><small>LAB TEMPLATES</small><h1>Deploy a scenario</h1><p>Templates are sequences of the simulator's existing CLI operations.</p></div><div class="template-grid">
+  <article class="panel template"><h2>Blank Lab</h2><p>Start with no simulated resources. A backup is created before reset.</p><button class="danger" onclick="resetLab()">Reset to blank</button></article>
+  <article class="panel template"><h2>Core VNet</h2><p>Resource group, VNet and web/app subnets.</p><button onclick="deployTemplate('core')">Deploy</button></article>
+  <article class="panel template"><h2>Hybrid VPN</h2><p>Core VNet + VPN gateway + local gateway + BGP.</p><button onclick="deployTemplate('hybrid')">Deploy</button></article>
+  <article class="panel template"><h2>Advanced Hybrid</h2><p>Route Server + NVA + ExpressRoute coexistence.</p><button onclick="deployTemplate('advanced')">Deploy</button></article>
+</div></section>
+</main>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modal-card"><button class="close" onclick="closeModal()">×</button><div id="modalContent"></div></div></div>
+<div id="toast" class="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
